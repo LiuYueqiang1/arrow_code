@@ -1,0 +1,63 @@
+#include "head.h"
+
+int main() {
+	//-----------------------------------------Initialize peripherals
+	disable_caches();
+	enable_caches();
+	init_usb_uart();
+	init_logger();
+//	logger_set_level(&logger, LOG_DEBUG, SWITCH_STATE_ON);
+	log_info(g_logger,"start configure system parameters");
+	init_soc_uart();
+	init_interrupt();
+	init_flash();
+	init_system_data();
+
+	//-----------------------------------------Load configuration information
+	load_system_data();
+	load_user_cfg();
+
+	//-----------------------------------------Configure multiple temperature segments
+	g_p_sensor = &g_sensor_normal;
+	g_temperature_en = SWITCH_STATE_ON;
+	g_temperature_range = TEMP_NORMAL;
+
+	write_ps_reg(REG_PALLETE, PALLETTE_NUM);//Set the output gray-scale image
+
+	//-----------------------------------------Initialize the timer
+	set_timer(REG_TIMER1, 0, 0, 0);
+	set_timer(REG_TIMER2, 0, 0, 0);
+	set_timer(REG_TIMER3, 0, 0, 0);
+
+	//-----------------------------------------Load image data
+	init_B();
+	init_BL();
+	init_BH();
+	load_BP(FLASH_BP_MENU_BASE_ADDR);
+	check_sensor_temperature(TRUE);
+
+	calibration(NUC_MODE_AUTO);
+	calibration_task(TRUE);
+	write_ps_reg(REG_PALLETE, reg_pallette);
+
+	//----------------------------------------- Set the timer
+	set_timer(REG_TIMER1, 1000, 1, 0);	// enable timer1 1
+	set_timer(REG_TIMER2, 40, 1, 0);	// enable timer2 40ms
+
+	update_guard();
+
+	reg_calibration = NUC_MODE_AUTO;// set AUTO mode
+
+	init_device_info();
+
+	log_info(g_logger,"end configure system parameters");
+
+	for (;;) {
+		usleep(1000);
+		search_frame_in_buffer(&usb_uart);
+		search_frame_in_buffer(&soc_uart);
+		task();
+
+	}
+
+}
